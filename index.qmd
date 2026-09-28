@@ -1,0 +1,5 @@
+---
+title: "Welcome to My STA 9750 Website"
+---
+
+Hello! I am a student in STA 9750. This site will host my course projects and analysis.

@@ -1,0 +1,17 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "STA 9750 Portfolio"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: mp01.qmd
+        text: Mini-Project 1
+
+format:
+  html:
+    theme: light
+    toc: true
