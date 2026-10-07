@@ -2,4 +2,40 @@
 title: "Welcome to My STA 9750 Website"
 ---
 
-Hello! I am a student in STA 9750. This site will host my course projects and analysis.
+## About Me
+
+Hi! My name is Kristin and I am a current graduate student pursuing my Masters in AI & Business Analytics at Baruch College. I previously completed my undergraduate degree in Accounting here at Baruch as well. 
+
+My main focus is in business but I also want to equip myself with new tech skills to become a strong candidate entering the workforce. Especially in this growing era of technology, I want to challenge myself with learning a new subset of skills and applying it in my daily life as well as career. My work experience consists of previous internships in Audit, Tax, Advisory, as well as Data Engineering.
+
+Feel free to connect with me on [LinkedIn](https://www.linkedin.com/in/kristin-lin/)!
+
+## Baruch College
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+if(!require("leaflet")){
+    options(repos=c(CRAN="https://cloud.r-project.org"))
+    install.packages("leaflet")
+    stopifnot(require("leaflet"))
+}
+
+baruch_longitude <- -73.98333
+baruch_latitude  <- +40.74028
+
+leaflet() |>
+  addTiles() |>
+  setView(baruch_longitude, baruch_latitude, zoom=17) |>
+  addPopups(baruch_longitude, baruch_latitude,
+            "<b>Check out my school!</b>")
+```
+
+```{r}
+#| include: false
+1+1
+```
+--------------
+Last Updated: `r format(Sys.time(), "%A %B %d, %Y at %I:%M %p")`

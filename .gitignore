@@ -5,3 +5,23 @@
 
 /.quarto/
 **/*.quarto_ipynb
+
+**/.quarto/*
+.Rproj.user
+data/**
+**/*_cache/*
+*_files/*
+**/*_freeze/*
+**/*tsv*
+**/*csv*
+**/*xlsx*
+**/*zip
+**/*pdf
+**/*json
+**/*rds
+.DS_Store
+.Rhistory
+/.quarto/*
+**/gganim*
+*bspf
+**/*bspf
