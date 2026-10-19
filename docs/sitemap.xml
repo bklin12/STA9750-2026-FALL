@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://bklin12.github.io/STA9750-2026-FALL/mp01.html</loc>
-    <lastmod>2026-10-06T22:53:10.306Z</lastmod>
+    <lastmod>2026-10-19T13:15:30.132Z</lastmod>
   </url>
   <url>
     <loc>https://bklin12.github.io/STA9750-2026-FALL/mp03.html</loc>
@@ -19,5 +19,9 @@
   <url>
     <loc>https://bklin12.github.io/STA9750-2026-FALL/mp02.html</loc>
     <lastmod>2026-10-06T22:53:13.417Z</lastmod>
+  </url>
+  <url>
+    <loc>https://bklin12.github.io/STA9750-2026-FALL/mp01-placeholder-backup.html</loc>
+    <lastmod>2026-10-19T08:48:17.534Z</lastmod>
   </url>
 </urlset>

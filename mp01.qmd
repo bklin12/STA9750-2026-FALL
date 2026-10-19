@@ -1,5 +1,452 @@
 ---
-title: "Mini-Project Placeholder"
+title: "Netflix What We Watched: Mini-Project 01"
+format:
+  html:
+    code-fold: true
+    code-summary: "Show the code"
+    code-tools: true
 ---
+# Introduction
 
-This is a placeholder for STA9750 Mini-Project 1. Check back soon for more!
+The goal of this project is to evaluate Netflix’s viewing data from 2023 to 2026 and use that to gain a deeper understanding of how the company is performing and what aspects to focus on in the upcoming year. Netflix publishes a “What We Watched” report every six months and these reports aggregate total global viewership for the entire Netflix catalog for that period. 
+
+The results from this project will allow Netflix to take raw data and transform it into useful information that business executives can use to make strategic decisions for the overall company.
+
+# Data Cleaning and Preparation
+```{r}
+
+#' Acquire Netflix What We Watched Reports
+#' 
+#' This function will acquire and standardize all data for MP#01
+#' from Netflix. Because Netflix hosts the data files behind a CDN, we
+#' are accessing the release pages and automatically extracting links to the
+#' relevant files (with CDN hash). 
+#' 
+#' After import, files are stacked vertically and some basic cleaning is
+#' performed. 
+load_netflix_data <- function(){
+  # Note to students: Make sure you have installed the tidyverse and fs packages
+  #                   before beginning this assignment. If you aren't sure,
+  #                   simply run `library(tidyverse)` at your R Console and, if
+  #                   you don't see an error message, `tidyverse` has been 
+  #                   installed. (Same for `fs`) If you still need to install
+  #                   either package, use the `install.packages` function as 
+  #                   demonstrated in class.
+  library(tidyverse)
+  library(rvest)
+  library(readxl)
+  library(fs)
+  library(gt)
+  
+  data_dir <- path("data", "mp01")
+    
+  if(!dir_exists(data_dir)){
+    dir_create(data_dir, showWarnings=FALSE, recurse=TRUE)
+  }
+  
+  NETFLIX_URLS <- list(
+    `2023H1` = "https://about.netflix.com/news/what-we-watched-a-netflix-engagement-report",
+    `2023H2` = "https://about.netflix.com/news/what-we-watched-the-second-half-of-2023",
+    `2024H1` = "https://about.netflix.com/news/what-we-watched-the-first-half-of-2024",
+    `2024H2` = "https://about.netflix.com/news/what-we-watched-the-second-half-of-2024",
+    `2025H1` = "https://about.netflix.com/news/what-we-watched-the-first-half-of-2025",
+    `2025H2` = "https://about.netflix.com/news/what-we-watched-the-second-half-of-2025",
+    `2026H1` = "https://about.netflix.com/news/what-we-watched-the-first-half-of-2026"
+  )
+  
+  download_if_needed <- function(url, local){
+    if(!file_exists(local)){
+      download.file(url, local, quiet = TRUE, mode = "wb")
+    }
+    
+    return(local)
+  }
+    
+  NETFLIX_URLS |> 
+    map(read_html) |> 
+    map(html_element, xpath = "//a[contains(@href, '.xlsx')]") |> 
+    map_chr(html_attr, "href") |> 
+    enframe("period", "url") |> 
+   mutate(path = path(data_dir, paste0(period, ".xlsx")), 
+          path = map2(url, path, download_if_needed), 
+          data = map(path, read_excel, skip=3, na="*"), 
+          data = map(data, \(x) x |> mutate(`Release Date` = as.Date(`Release Date`)))) |>
+    unnest(data) |> 
+    select(-url, -path) |> 
+    mutate(year=str_sub(period, 1, 4), 
+           half=str_sub(period, start=6), 
+           period_start = make_date(year, if_else(half==1, 1, 7), 1), 
+           period_end = make_date(year, if_else(half==1, 6, 12), if_else(half==1, 30, 31))) |> 
+    filter(!is.na(`Hours Viewed`)) |> 
+    mutate(live_event = !is.na(Runtime) & str_detect(Runtime, "\\d+:\\d+\\*"), 
+           clean_time = str_remove(Runtime, fixed("*")),
+           Runtime = 60 * hour(hm(clean_time)) + minute(hm(clean_time))) |>
+    select(-clean_time) |>
+    mutate(Runtime = coalesce(Runtime, mean(Runtime, na.rm=TRUE)), 
+           .by=Title, 
+           Title = stringi::stri_trans_general(Title, "Latin-ASCII"),
+           Title = str_remove(Title, " // .*"), 
+           Title = str_remove(Title, "[^[:ascii:]].*"), 
+           Title = str_trim(Title)) |>
+    filter_out(Title == "") |>
+    select(year, 
+           period, 
+           period_start, 
+           period_end, 
+           Title, 
+           -half, 
+           Runtime, 
+           Views, 
+           `Hours Viewed`, 
+           `Release Date`,
+           `Available Globally?`, 
+           live_event)
+}
+
+NETFLIX_DATA <- load_netflix_data()
+```
+
+## Cleaning Column Names and Types
+```{r}
+NETFLIX_DATA <- NETFLIX_DATA |>
+  rename(
+    title = Title,
+    runtime = Runtime,
+    views = Views,
+    hours_viewed = `Hours Viewed`,
+    release_date = `Release Date`,
+    available_globally = `Available Globally?`
+  ) |>
+  mutate(
+    year = as.integer(year),
+    available_globally = available_globally == "Yes"
+  )
+```
+
+# Initial Data Exploration
+
+## Data Structure and Summary Statistics
+```{r}
+glimpse(NETFLIX_DATA)
+
+skimr::skim(NETFLIX_DATA)
+```
+This dataset has a total of 61,892 rows and 11 columns. It looks like the data is for the years of 2023 - 2026 and includes movie/show titles as well as their respective data such as what period they started showing and ending. It also gives details on its availability and how the movie performed through metrics such as how many hours it was viewed. An area to be cautious about is that some data contains missing values such as release dates, views, as well as runtime. 
+
+
+# Exploratory Questions
+
+## Task 5: Summary of Key Questions
+```{r}
+# Task 5: Calculate the values needed for the six exploratory questions
+
+date_range <- NETFLIX_DATA |>
+  summarise(
+    first_date = min(period_start, na.rm = TRUE),
+    last_date = max(period_end, na.rm = TRUE)
+  )
+
+number_of_titles <- NETFLIX_DATA |>
+  summarise(n = n_distinct(title))
+
+bridgerton_hours <- NETFLIX_DATA |>
+  filter(str_detect(title, regex("Bridgerton", ignore_case = TRUE))) |>
+  summarise(hours = sum(hours_viewed, na.rm = TRUE))
+
+stranger_things_hours <- NETFLIX_DATA |>
+  filter(str_detect(title, regex("Stranger Things", ignore_case = TRUE))) |>
+  filter_out(str_detect(title, regex("Beyond Stranger Things", ignore_case = TRUE))) |>
+  filter_out(str_detect(title, regex("Tales From", ignore_case = TRUE))) |>
+  filter_out(str_detect(title, regex("Stranger Things: Fireplace", ignore_case = TRUE))) |>
+  summarise(hours = sum(hours_viewed, na.rm = TRUE))
+
+top_10_share_2026H1 <- NETFLIX_DATA |>
+  filter(period == "2026H1") |>
+  arrange(desc(hours_viewed)) |>
+  mutate(rank = row_number()) |>
+  filter(rank <= 10) |>
+  summarise(share = sum(hours_viewed, na.rm = TRUE) /
+              sum(NETFLIX_DATA$hours_viewed[NETFLIX_DATA$period == "2026H1"],
+                  na.rm = TRUE))
+
+global_availability <- NETFLIX_DATA |>
+  summarise(
+    title_fraction = n_distinct(title[available_globally == TRUE]) /
+      n_distinct(title),
+    hours_fraction = sum(hours_viewed[available_globally == TRUE], na.rm = TRUE) /
+      sum(hours_viewed, na.rm = TRUE)
+  )
+
+global_availability
+```
+### 1. What date range is covered by this data set?
+The data range covered by this data set is from `r format(date_range$first_date, "%B %d, %Y")` to `r format(date_range$last_date, "%B %d, %Y")`. 
+
+### 2. How many different shows and movies are covered in this data set?
+There are `r number_of_titles$n` different shows and movies covered in the data set. 
+
+### 3. How many total hours have been spent watching shows from the Bridgerton universe?
+A total of `r scales::comma(bridgerton_hours$hours)` hours have been spent watching the Bridgerton universe. 
+
+### 4. How many total hours have been spent watching the five seasons of Stranger Things?
+A total of `r scales::comma(stranger_things_hours$hours)` hours have been spent watching the five seasons of Stranger Things.
+
+
+### 5. What percentage of total watch time was spent on the Top 10 titles of 2026H1?
+`r scales::percent(top_10_share_2026H1$share, accuracy = 0.01)` of total watch time was spent on the Top 10 titles of 2026H1.
+
+
+### 6. What fraction of Netflix’s catalog is globally available? 
+`r scales::percent(global_availability$title_fraction, accuracy = 0.01)` of titles on Netflix's catalog is globally available and `r scales::percent(global_availability$hours_fraction, accuracy = 0.01)` of viewing hours is globally available. 
+
+
+## Task 6.1: Top Title by Reporting Period
+```{r}
+# Task 6.1: Top title in each reporting period
+
+top_title_by_period <- NETFLIX_DATA |>
+  group_by(period) |>
+  slice_max(
+    order_by = hours_viewed,
+    n = 1,
+    with_ties = FALSE
+  ) |>
+  ungroup() |>
+  select(period, title, hours_viewed) |>
+  left_join(
+    NETFLIX_DATA |>
+      group_by(period) |>
+      summarise(
+        total_hours = sum(hours_viewed, na.rm = TRUE),
+        .groups = "drop"
+      ),
+    by = "period"
+  ) |>
+  mutate(viewership_fraction = hours_viewed / total_hours) |>
+  select(period, title, hours_viewed, viewership_fraction) |>
+  arrange(period)
+
+top_title_by_period |>
+  gt() |>
+  cols_label(
+    period = "Reporting Period",
+    title = "Top Title",
+    hours_viewed = "Hours Viewed",
+    viewership_fraction = "Share of Viewing Time"
+  ) |>
+  fmt_number(
+    columns = hours_viewed,
+    decimals = 0
+  ) |>
+  fmt_percent(
+    columns = viewership_fraction,
+    decimals = 2
+  ) |>
+  tab_header(
+    title = "Top Netflix Title by Reporting Period",
+    subtitle = "Title with the most hours viewed in each period"
+  )
+```
+The top titles were different for each period but it is evident that the Bridgerton and Squid Game series have high popularity because multiple seasons of their shows made it on the list. Especially for Squid Game, they ranked consecutively from 2024 H2 to 2025 H1. However, even though those two shows made it on the list twice, when looking at the actual viewing hours and share of period hours, they still only make up a small number of the total. For example, for viewing hours specficially, the highest value in the chart is for Wednesday: Season 2, making up 964.1M hours but it only made it on the list once. This demonstrates that popularity is subjective because a movie can be popular in terms of count or popular in terms of longetivity but both are determining factors of the concept “popularity”. 
+
+
+## Task 6.2: Netflix Catalog Size Over Time
+```{r}
+# Task 6.2: Netflix catalog size over time
+
+catalog_by_period <- NETFLIX_DATA |>
+  group_by(period) |>
+  summarise(
+    number_of_titles = n_distinct(title),
+    total_runtime_hours = sum(runtime, na.rm = TRUE) / 60,
+    .groups = "drop"
+ ) |>
+  arrange(period)
+
+catalog_by_period |>
+  gt() |>
+  cols_label(
+    period = "Reporting Period",
+    number_of_titles = "Number of Titles",
+    total_runtime_hours = "Total Runtime (Hours)"
+  ) |>
+  fmt_number(
+    columns = number_of_titles,
+    decimals = 0
+  ) |>
+  fmt_number(
+    columns = total_runtime_hours,
+    decimals = 0
+  ) |>
+  tab_header(
+    title = "Netflix Catalog Size Over Time",
+    subtitle = "Distinct titles and combined reported runtime by period"
+  )
+```
+In the table, it notes that 2023 H1 had distinct titles of 18,126 and dropped significantly to 6,574 in 2023 H2. Since this value is so big, this could be treated as an outlier as there could have been differences in the organization of titles rather than determining that there was an immense drop in the amount distinctive titles. For the rest of the periods, we can notice a gradual increase in the amount of distinct titles. 
+
+
+## Task 6.3: Titles with Consistently High Viewership
+```{r} 
+# Task 6.3: Titles with consistently high viewership
+
+consistent_titles <- NETFLIX_DATA |>
+  group_by(title) |>
+  summarise(
+    periods_appeared = n_distinct(period),
+    average_hours = mean(hours_viewed, na.rm = TRUE),
+    minimum_hours = min(hours_viewed, na.rm = TRUE),
+    sd_hours = sd(hours_viewed, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  filter(periods_appeared >= 4) |>
+  arrange(desc(average_hours)) |>
+  slice_head(n = 10)
+
+consistent_titles |>
+  gt() |>
+  cols_label(
+    title = "Title",
+    periods_appeared = "Periods Appeared",
+    average_hours = "Average Hours Viewed",
+    minimum_hours = "Minimum Hours Viewed",
+    sd_hours = "Std. Deviation"
+  ) |>
+  fmt_number(
+    columns = c(average_hours, minimum_hours, sd_hours),
+    decimals = 0
+  ) |>
+  tab_header(
+    title = "Consistently Popular Netflix Titles",
+    subtitle = "Top average viewing hours among titles appearing in at least four periods"
+  )
+```
+This table demonstrates that even though a show may appear in many periods, it may not have the highest level of engagement. For example, Stranger Things 4 appears in 7 periods and has an average of 207.39M hours which can signify that it is a fan favorite but when compared to Squid Game: Season 2, even though the later only appears in 4 periods, its average hours goes to 403.65M. Other factors to consider are also the standard deviation between the minimum amount of hours and the average to understand how wide the gap is from least engaged to highest engaged.
+
+
+
+## Task 6.4: Shows versus Movies
+```{r} 
+
+
+# Task 6.4: Shows versus movies
+
+show_movie_by_period <- NETFLIX_DATA |>
+  mutate(
+    content_type = if_else(
+      str_detect(title, regex("Season", ignore_case = TRUE)) |
+        (!is.na(runtime) & runtime > 240),
+      "Show",
+      "Movie"
+    )
+  ) |>
+  group_by(period, content_type) |>
+  summarise(
+    hours_viewed = sum(hours_viewed, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  group_by(period) |>
+  mutate(viewing_fraction = hours_viewed / sum(hours_viewed)) |>
+  ungroup()
+
+show_movie_by_period |>
+  gt() |>
+  cols_label(
+    period = "Reporting Period",
+    content_type = "Content Type",
+    hours_viewed = "Hours Viewed",
+    viewing_fraction = "Share of Viewing Time"
+  ) |>
+  fmt_number(columns = hours_viewed, decimals = 0) |>
+  fmt_percent(columns = viewing_fraction, decimals = 2) |>
+  tab_header(
+    title = "Netflix Viewing Time: Shows vs. Movies",
+    subtitle = "Classification based on title and runtime"
+  )
+
+
+```
+This table shows that as time passed, shows became more popular than movies. The periodic trend of movies follows a downward direction while the trend for shows an upward direction, starting at 69.17% and growing to 94.75% 
+
+
+## Task 6.5: Live Events versus Pre-taped Content
+```{r}
+
+
+
+# Task 6.5: Live events versus pre-taped content
+
+title_level_hours <- NETFLIX_DATA |>
+  group_by(title, live_event) |>
+  summarise(
+    average_hours = mean(hours_viewed, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+live_event_summary <- title_level_hours |>
+  mutate(
+    content_type = if_else(live_event, "Live Event", "Pre-taped")
+  ) |>
+  group_by(content_type) |>
+  summarise(
+    average_hours = mean(average_hours, na.rm = TRUE),
+    top_tier_hours = max(title_level_hours$average_hours[
+      title_level_hours$live_event == first(live_event)
+    ], na.rm = TRUE),
+    number_of_titles = n(),
+    .groups = "drop"
+  )
+
+live_event_summary |>
+  gt() |>
+  cols_label(
+    content_type = "Content Type",
+    average_hours = "Average Hours Viewed per Title",
+    top_tier_hours = "Highest Average Hours Viewed",
+    number_of_titles = "Number of Titles"
+  ) |>
+  fmt_number(
+    columns = c(average_hours, top_tier_hours, number_of_titles),
+    decimals = 0
+  ) |>
+  tab_header(
+    title = "Live Events vs. Pre-taped Content",
+    subtitle = "Average and highest title-level viewing hours across reporting periods"
+  )
+
+
+
+```
+Looking at this table, the average viewing hours and highest average of viewing hours are all concentrated in Pre-taped events, signaling that Pre-taped events tend to perform better than live events. 
+
+# Strategy Memo
+
+**To:** Netflix Leadership 
+
+**From:** Netflix Analytics & Forecasting Team
+
+**Subject:** Netflix 2027 Content Focus Projections
+
+
+Dear Executive Team, 
+
+Hope this email finds you well. Upon our analysis of Netflix’s “What We Watched” reports from 2023 - 2026, we were able to gain valuable insights on patterns and trends for our 2027 content forecasts. 
+
+In our analysis, we noted a general preference over shows as compared to movies. In the first half of 2023, Movies had a market share of 30.83% while Shows had a market share of 69.17% Tracing the periodic movement from 2023 to the beginning of 2026, we observed a downwards trend for movies and a gradually increasing trend for shows. By 2026, the market share for movies was consisted of 5.25% while the market share for shows was consisted of 94.75% This demonstrates that shows tend to have greater enjoyment from audience so we can continue to push out more shows for the 2027 fiscal year. 
+
+Another observation lies within the composition of viewing hours. We noticed that even though certain shows may be popular for multiple periods, it doesn’t always have a direct correlation with viewing hours. For example, the show Squid Game: Season 2 was a top title consecutively for 2024 H2 and 2025 H1. The viewing hours for each of those periods were 619.9M and 840.3M. However, from 2023 - 2026, the show that had the highest viewing hours was Wednesday: Season 2 with a total of 964.1M hours, even though it was only the top show in 2025. In addition, although each period has a top show, each show makes up less than 2% of the market share for total viewing hours. This indicates that Netflix should pursue a diversification strategy and although we benefit from high-performing titles, it is still not enough to be the core focus. 
+
+To summarize, our recommendations for the 2027 Content team is to place greater emphasis on shows and to pursue a diversification strategy on the type of content we put out. By expanding our category offerings, we are able to spread out risk and increase profit margin potential. 
+
+Best, 
+
+Netflix Analytics & Forecasting Team
+
+
+
+
+
+::: {.callout-note collapse="true" title="AI Usage Statement"}
+
+ChatGPT was used to help write the code & provide additional background information in this project, but all non-code text was generated without the use of any Generative AI tools. 
+:::
