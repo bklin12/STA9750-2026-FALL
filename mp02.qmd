@@ -21,7 +21,7 @@ execute:
 
 ## Introduction
 
-For a commuter based area such as New York City, more than 50% of the population relies on public transportation to commute to various areas across the city. People tend to grow up in the city never learning how to drive because often times it is simply much easier to just take public transportation. From youth to adult, the public transportation system has been apart of our lives from when we were students all the way to our daily work commutes. However, regardless of which form of commute you take, there will always be toxic carbon emissions being emitted from each type of vehicle. 
+For a commuter-based city such as New York, more than 50% of the population rely on public transportation to commute to various areas across the city. People tend to grow up in the city never learning how to drive because often times it is simply much easier to just take the public transportation. From youth to adulthood, the public transportation system has always been apart of our lives from when we were students all the way to our daily work commutes. However, regardless of which form of commute you take, there will always be toxic carbon emissions being emitted from each type of vehicle. 
 
 This analysis examines various datasets across multiple travel agencies about electricity, fuel usage, as well as passenger information to better understand how different factors correlate with the environmental performance across travel agencies. 
 
@@ -29,7 +29,7 @@ This analysis examines various datasets across multiple travel agencies about el
 
 To evaluate transit agencies, I looked at three sources of information. The EIA state electricity profiles provide estimates of carbon emissions associated with electricity generation. The NTD energy dataset reports the fuel and electricity consumed by transit agencies, while the NTD service dataset provides information about passenger trips and passenger miles.
 
-These datasets serve different purposes, so they need to be cleaned and combined before I can estimate emissions and compare agencies. We also used 8 different questions to help guide our understanding of the data. 
+These datasets serve various purposes, so they need to be cleaned and combined before I can use them to estimate emissions and compare agencies. We also used 8 different questions to help guide our understanding of the data. 
 
 
 ### Task 1a: EIA State Electricity Profiles
@@ -320,7 +320,7 @@ NTD_ENERGY |>
 
 Before calculating the emissions for the individual transit agencies, I examined patterns in electricity generation and transportation fuel usage.
 
-One finding is that electricity emissions vary considerably across states. West Virginia has the highest reported emissions rate in this dataset at 1,912 pounds of CO₂ per MWh, compared with only 8 pounds per MWh in Vermont. This suggests that an electric transit system's estimated environmental impact can partly depend on where it operates.
+One finding is that electricity emissions vary considerably across states. West Virginia has the highest reported emissions rate in this dataset at 1,912 pounds of CO₂ per MWh, compared with only 8 pounds per MWh in Vermont. This suggests that an electric transit system's estimated environmental impact can partially depend on where it operates.
 
 The transit energy data also shows that diesel fuel remains a major source of energy consumption, with New Jersey Transit Corporation and MTA New York City Transit reporting the highest total gallon usage among the agencies examined.
 
